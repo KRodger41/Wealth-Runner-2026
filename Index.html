@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wealth Runner 2026</title>
+   
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4ade80">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-YOUR_PUBLISHER_ID" crossorigin="anonymous"></script>
+
+    <style>
+        :root { --green: #4ade80; --gold: #fbbf24; --bg: #05190f; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        canvas { display: block; background: #000; width: 100vw; height: 100vh; }
+       
+        #hud { position: absolute; top: 10px; left: 10px; z-index: 5; background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 20px; border: 1px solid var(--green); font-size: 14px; }
+       
+        .menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+               background: #0a2e1c; padding: 25px; border-radius: 20px; text-align: center; width: 85%;
+               border: 2px solid var(--green); z-index: 10; max-height: 85vh; overflow-y: auto; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+       
+        .btn { background: var(--green); color: #05190f; border: none; padding: 14px; margin: 8px 0; border-radius: 12px; font-weight: bold; width: 100%; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
+        .hidden { display: none; }
+       
+        #lb-list { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; margin: 10px 0; text-align: left; font-size: 0.8rem; }
+        .lb-entry { display: flex; justify-content: space-between; border-bottom: 1px solid #1a4d34; padding: 5px 0; }
+        input { width: 90%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--green); background: #000; color: #fff; text-align: center; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <div id="hud">💰 $<span id="score-val">0</span> | 🏆 $<span id="high">0</span></div>
+
+    <div id="bonus-modal" class="menu hidden" style="background: var(--gold); color: #000; z-index: 20;">
+        <h2 style="margin:0;">🎁 DAILY GIFT</h2>
+        <p>Claim <b>$1,000</b> to start your empire!</p>
+        <button class="btn" style="background:#000; color:#fff;" onclick="claimBonus()">COLLECT CASH</button>
+    </div>
+
+    <div id="start-menu" class="menu">
+        <h1 style="color: var(--green); margin: 0; font-size: 2rem;">WEALTH RUNNER</h1>
+        <p style="font-size: 0.8rem; color: var(--gold); margin-bottom: 15px;">DODGE DEBT • STACK CASH</p>
+       
+        <input type="text" id="p-name" placeholder="Enter Nickname" maxlength="10">
+       
+        <button class="btn" onclick="startGame()">START RUNNING</button>
+        <button class="btn" style="background: var(--gold);" onclick="watchAd()">AD: GET $500 BONUS</button>
+       
+        <div id="lb-list">🏆 Loading Global Leaders...</div>
+       
+        <button class="btn" style="background: #25D366; color: white;" onclick="shareWA()">SHARE ON WHATSAPP</button>
+       
+        <div style="margin-top:15px;"><a href="privacy.html" style="color: #888; font-size: 0.7rem; text-decoration: none;">Privacy Policy</a></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // --- 2. FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIza...",
+            authDomain: "wealth-runner.firebaseapp.com",
+            projectId: "wealth-runner",
+            appId: "1:..."
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- 3. GAME ENGINE ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let gameActive = false, score = 0, pool = [];
+        let player = { x: canvas.width/2 - 20, y: canvas.height - 120, w: 40, h: 40 };
+        let high = localStorage.getItem('wealthHigh') || 0;
+        document.getElementById('high').innerText = high;
+
+        window.startGame = () => {
+            document.getElementById('start-menu').classList.add('hidden');
+            score = 0; pool = []; gameActive = true;
+            document.getElementById('score-val').innerText = "0";
+            update();
+        };
+
+        window.addEventListener('touchmove', e => {
+            if(gameActive) player.x = e.touches[0].clientX - 20;
+        }, { passive: true });
+
+        function update() {
+            if(!gameActive) return;
+            ctx.fillStyle = "#05190f"; ctx.fillRect(0,0,canvas.width,canvas.height);
+           
+            // Draw Player
+            ctx.fillStyle = "#4ade80"; ctx.font = "34px Arial"; ctx.fillText("💰", player.x, player.y + 30);
+
+            // Spawn Logic
+            if(Math.random() < 0.05) {
+                pool.push({
+                    x: Math.random()*(canvas.width-30),
+                    y: -40,
+                    s: 5 + (score/1500),
+                    t: Math.random() > 0.8 ? 'c' : 'd'
+                });
+            }
+
+            for(let i = pool.length - 1; i >= 0; i--) {
+                let e = pool[i];
+                e.y += e.s;
+               
+                // Draw Entities
+                ctx.fillStyle = e.t==='c' ? "#fbbf24" : "#f87171";
+                if(e.t === 'c') {
+                    ctx.beginPath(); ctx.arc(e.x+15, e.y+15, 12, 0, Math.PI*2); ctx.fill();
+                } else {
+                    ctx.fillRect(e.x, e.y, 30, 30);
+                }
+
+                // Collision Detection
+                if(e.x < player.x+35 && e.x+30 > player.x && e.y < player.y+35 && e.y+30 > player.y) {
+                    if(e.t==='c') {
+                        score += 100; pool.splice(i,1);
+                        if(navigator.vibrate) navigator.vibrate(40);
+                    } else {
+                        if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                        gameOver();
+                    }
+                    document.getElementById('score-val').innerText = score;
+                }
+                if(e.y > canvas.height) {
+                    pool.splice(i,1);
+                    if(gameActive) score += 10;
+                    document.getElementById('score-val').innerText = score;
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        async function gameOver() {
+            gameActive = false;
+            if(score > high) {
+                high = score; localStorage.setItem('wealthHigh', high);
+                document.getElementById('high').innerText = high;
+                const n = document.getElementById('p-name').value || "Mogul";
+                try { await addDoc(collection(db, "leaderboard"), { name: n, score: score, date: Date.now() }); } catch(e){}
+            }
+            alert("MARKET CRASH! Total Wealth: $" + score);
+            document.getElementById('start-menu').classList.remove('hidden');
+            loadLB();
+        }
+
+        async function loadLB() {
+            try {
+                const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(5));
+                const snap = await getDocs(q);
+                let html = ""; snap.forEach(d => html += `<div class="lb-entry"><span>${d.data().name}</span><span>$${d.data().score}</span></div>`);
+                document.getElementById('lb-list').innerHTML = html || "No Moguls yet!";
+            } catch(e) { document.getElementById('lb-list').innerHTML = "Leaderboard Offline"; }
+        }
+
+        // --- 4. UTILS & ADS ---
+        window.claimBonus = () => {
+            score += 1000; document.getElementById('score-val').innerText = score;
+            localStorage.setItem('lastB', Date.now());
+            document.getElementById('bonus-modal').classList.add('hidden');
+        };
+
+        window.shareWA = () => {
+            const msg = `💰 I hit $${score} in Wealth Runner 2026! Can you beat me? Play here: ${window.location.href}`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
+        window.watchAd = () => {
+            // This triggers the Google AdBreak
+            if(typeof adBreak !== 'undefined') {
+                adBreak({
+                    type: 'reward',
+                    name: 'extra_cash',
+                    beforeReward: (show) => show(),
+                    adViewed: () => { score += 500; document.getElementById('score-val').innerText = score; }
+                });
+            } else {
+                alert("Ads loading... Play a round first!");
+            }
+        };
+
+        // Offline Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(() => console.log("Offline Mode Active"));
+            });
+        }
+       
+        window.onload = () => {
+            const last = localStorage.getItem('lastB');
+            if(!last || Date.now() - last > 86400000) document.getElementById('bonus-modal').classList.remove('hidden');
+            loadLB();
+        };
+    </script>
+</body>
+</html>
